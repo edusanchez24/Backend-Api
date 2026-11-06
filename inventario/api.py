@@ -1,5 +1,5 @@
 from django.db import transaction
-from rest_framework import routers, viewsets
+from rest_framework import permissions, routers, viewsets
 from rest_framework.exceptions import ValidationError
 
 from .models import Cliente, Producto, ProductoTalla, Venta, VentaDetalle
@@ -11,20 +11,32 @@ from .serializers import (
     VentaSerializer,
 )
 
+class CatalogReadOnly(permissions.IsAuthenticatedOrReadOnly):
+    pass
+
 
 class ProductoViewSet(viewsets.ModelViewSet):
     queryset = Producto.objects.prefetch_related('tallas').all()
     serializer_class = ProductoSerializer
+    permission_classes = (CatalogReadOnly,)
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        if not self.request.user.is_authenticated:
+            queryset = queryset.filter(activo=True)
+        return queryset
 
 
 class ProductoTallaViewSet(viewsets.ModelViewSet):
     queryset = ProductoTalla.objects.select_related('producto').all()
     serializer_class = ProductoTallaSerializer
+    permission_classes = (CatalogReadOnly,)
 
 
 class ClienteViewSet(viewsets.ModelViewSet):
     queryset = Cliente.objects.all()
     serializer_class = ClienteSerializer
+    permission_classes = (permissions.IsAuthenticated,)
 
 
 class VentaViewSet(viewsets.ModelViewSet):
@@ -33,6 +45,43 @@ class VentaViewSet(viewsets.ModelViewSet):
         'detalles__talla',
     ).all()
     serializer_class = VentaSerializer
+    permission_classes = (permissions.IsAuthenticated,)
+
+    @transaction.atomic
+    def perform_create(self, serializer):
+        items = serializer.validated_data.pop('items', [])
+        if not items:
+            raise ValidationError({'items': 'Debes incluir al menos un producto.'})
+        venta = serializer.save()
+        for item in items:
+            producto = Producto.objects.select_for_update().get(pk=item['producto'].pk)
+            talla = item.get('talla')
+            locked_talla = None
+            if talla:
+                locked_talla = ProductoTalla.objects.select_for_update().get(pk=talla.pk)
+                if locked_talla.producto_id != producto.pk:
+                    raise ValidationError({'items': 'La talla no pertenece al producto.'})
+                disponible = locked_talla.stock
+            else:
+                disponible = producto.stock
+            cantidad = item['cantidad']
+            if cantidad > disponible:
+                raise ValidationError(
+                    {'items': f'Solo hay {disponible} unidades para {producto}.'}
+                )
+            VentaDetalle.objects.create(
+                venta=venta,
+                producto=producto,
+                talla=locked_talla,
+                cantidad=cantidad,
+            )
+            if locked_talla:
+                locked_talla.stock -= cantidad
+                locked_talla.save(update_fields=('stock',))
+            else:
+                producto.stock -= cantidad
+                producto.save(update_fields=('stock',))
+        venta.recalcular_total()
 
 
 class VentaDetalleViewSet(viewsets.ModelViewSet):
@@ -42,6 +91,7 @@ class VentaDetalleViewSet(viewsets.ModelViewSet):
         'talla',
     ).all()
     serializer_class = VentaDetalleSerializer
+    permission_classes = (permissions.IsAuthenticated,)
 
     @transaction.atomic
     def perform_create(self, serializer):

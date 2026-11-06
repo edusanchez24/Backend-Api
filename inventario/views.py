@@ -1,5 +1,6 @@
 from django.contrib import messages
 from django.db import transaction
+from django.db.models import Count, Sum
 from django.http import JsonResponse
 from django.shortcuts import render, get_object_or_404, redirect
 from .models import Cliente, Producto, ProductoTalla, Venta, VentaDetalle
@@ -44,9 +45,20 @@ def producto_list(request):
     elif filtro_stock == 'no_disponibles':
         productos = productos.filter(stock=0)
 
+    resumen = Producto.objects.filter(activo=True).aggregate(
+        productos=Count('id'),
+        unidades=Sum('stock'),
+    )
+    stock_bajo = Producto.objects.filter(activo=True, stock__gt=0, stock__lte=5).count()
+    chart_productos = list(
+        productos.values('nombre', 'stock').order_by('-stock')[:8]
+    )
     return render(request, 'inventario/producto_list.html', {
         'object_list': productos,
         'filtro_stock': filtro_stock,
+        'resumen': resumen,
+        'stock_bajo': stock_bajo,
+        'chart_productos': chart_productos,
     })
 
 def producto_detail(request, pk):

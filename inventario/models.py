@@ -59,6 +59,9 @@ class Cliente(models.Model):
     direccion = models.CharField(max_length=200, blank=True)
     correo = models.EmailField(blank=True)
 
+    def __str__(self):
+        return f'{self.rut} - {self.nombre}' if self.nombre else self.rut
+
 
 class Venta(models.Model):
     rut_cliente = models.CharField(max_length=12, null=True)

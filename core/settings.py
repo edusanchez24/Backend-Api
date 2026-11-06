@@ -31,10 +31,15 @@ db_password = os.getenv("password")
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-*3ro#sp5^id1c4p)gn+39d&eqqfhc1t&izwafckw621el4&#we'
-
 DEBUG = os.getenv('DEBUG', 'False').lower() in ('1', 'true', 'yes')
+
+# La clave debe existir en Vercel/Supabase y nunca se publica en el repositorio.
+SECRET_KEY = os.getenv('SECRET_KEY')
+if not SECRET_KEY:
+    if os.getenv('VERCEL') or os.getenv('ENVIRONMENT') == 'production':
+        raise RuntimeError('Falta SECRET_KEY en las variables de entorno.')
+    if DEBUG or os.getenv('DJANGO_TESTING') or os.getenv('RUN_MAIN') or os.getenv('DJANGO_SETTINGS_MODULE'):
+        SECRET_KEY = 'local-development-key-change-me'
 
 # Vercel envía el dominio público en HTTP_HOST. ALLOWED_HOSTS es la lista de
 # dominios que Django acepta antes de ejecutar cualquier vista.
@@ -84,8 +89,12 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
-    'DEFAULT_PERMISSION_CLASSES': (
-        'rest_framework.permissions.IsAuthenticated',
+    'DEFAULT_PERMISSION_CLASSES': ('rest_framework.permissions.IsAuthenticated',),
+    # La API se consume como JSON; evitar el renderer HTML elimina errores al
+    # abrir endpoints directamente desde el navegador.
+    'DEFAULT_RENDERER_CLASSES': (
+        'rest_framework.renderers.JSONRenderer',
+        'inventario.renderers.BrowserJSONRenderer',
     ),
 }
 

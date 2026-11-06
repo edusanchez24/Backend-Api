@@ -5,8 +5,8 @@
 <section aria-labelledby="titulo-productos">
     <div class="mb-10 flex flex-wrap items-end justify-between gap-4 border-b-2 border-stone-950 pb-6">
         <div>
-            <p class="mb-2 text-sm font-bold uppercase tracking-[0.22em] text-red-600">Control de stock</p>
-            <h1 id="titulo-productos" class="display-font text-5xl font-bold uppercase leading-none tracking-tight text-stone-950 sm:text-6xl">Catalogo<br><span class="text-red-600">Productos</span></h1>
+            <p class="mb-2 text-sm font-bold uppercase tracking-[0.22em] text-blue-600">Control de stock</p>
+            <h1 id="titulo-productos" class="display-font text-5xl font-bold uppercase leading-none tracking-tight text-slate-950 sm:text-6xl">Catalogo<br><span class="text-blue-600">Productos</span></h1>
         </div>
         <a href="{% url 'producto_create' %}" class="inline-flex min-h-11 items-center gap-2 border-2 border-stone-950 bg-stone-950 px-4 py-2.5 text-sm font-semibold text-white shadow-[4px_4px_0_#c7f000] transition hover:-translate-y-0.5 hover:bg-red-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lime-500">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-5" aria-hidden="true"><path stroke-linecap="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
@@ -23,8 +23,18 @@
                 <option value="no_disponibles" {% if filtro_stock == 'no_disponibles' %}selected{% endif %}>No disponibles</option>
             </select>
         </div>
-        <button type="submit" class="inline-flex min-h-11 items-center gap-2 border-2 border-stone-950 bg-lime-300 px-4 py-2.5 text-sm font-bold text-stone-950 transition hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lime-500">Aplicar filtro</button>
+        <button type="submit" class="inline-flex min-h-11 items-center gap-2 rounded-lg border border-blue-700 bg-blue-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-blue-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500">Aplicar filtro</button>
     </form>
+    <div class="mb-8 grid gap-4 sm:grid-cols-3" aria-label="Metricas de inventario">
+        <div class="rounded-2xl border border-blue-100 bg-blue-600 p-4 text-white shadow-lg shadow-blue-200/60"><p class="text-xs font-bold uppercase text-blue-100">Productos activos</p><p class="display-font text-4xl font-bold">{{ resumen.productos|default:0 }}</p></div>
+        <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-lg shadow-slate-200/60"><p class="text-xs font-bold uppercase text-slate-500">Unidades disponibles</p><p class="display-font text-4xl font-bold">{{ resumen.unidades|default:0 }}</p></div>
+        <div class="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-lg shadow-amber-100/60"><p class="text-xs font-bold uppercase text-amber-700">Stock bajo</p><p class="display-font text-4xl font-bold text-amber-900">{{ stock_bajo }}</p></div>
+    </div>
+    <div class="mb-8 border-2 border-stone-950 bg-[#f8f6ef] p-4 shadow-[4px_4px_0_#1c1c1b]">
+        <h2 class="mb-3 text-sm font-bold uppercase tracking-wide">Stock por producto</h2>
+        <div class="relative h-56"><canvas id="stock-chart" aria-label="Grafico de stock por producto"></canvas></div>
+    </div>
+    {{ chart_productos|json_script:"chart-productos" }}
     {% if object_list %}
     <ul class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-label="Lista de productos">
         {% for p in object_list %}
@@ -59,4 +69,16 @@
     </div>
     {% endif %}
 </section>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script>
+    const stockData = JSON.parse(document.getElementById('chart-productos').textContent);
+    new Chart(document.getElementById('stock-chart'), {
+        type: 'bar',
+        data: {
+            labels: stockData.map((item) => item.nombre),
+            datasets: [{label: 'Unidades', data: stockData.map((item) => item.stock), backgroundColor: '#2563eb', borderColor: '#1e3a8a', borderWidth: 1}],
+        },
+        options: {responsive: true, maintainAspectRatio: false, plugins: {legend: {display: false}}},
+    });
+</script>
 {% endblock %}
