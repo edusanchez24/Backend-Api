@@ -13,6 +13,11 @@ La URL puede cambiar si se configura otro dominio en Vercel. El dominio
 publico se controla mediante `ALLOWED_HOSTS`, `VERCEL_URL` y
 `VERCEL_BRANCH_URL`.
 
+El despliegue usa [`api/index.py`](./api/index.py) como entrypoint WSGI y
+[`vercel.json`](./vercel.json) envia todas las rutas a Django. En Vercel,
+configura las variables `SECRET_KEY`, `DEBUG=False`, `host`, `port`,
+`database`, `user`, `password` y `ALLOWED_HOSTS`. No subas el archivo `.env`.
+
 ## Configuracion local
 
 1. Crea un entorno virtual e instala dependencias:
