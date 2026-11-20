@@ -15,8 +15,11 @@ publico se controla mediante `ALLOWED_HOSTS`, `VERCEL_URL` y
 
 El despliegue usa [`api/index.py`](./api/index.py) como entrypoint WSGI y
 [`vercel.json`](./vercel.json) envia todas las rutas a Django. En Vercel,
-configura las variables `SECRET_KEY`, `DEBUG=False`, `host`, `port`,
-`database`, `user`, `password` y `ALLOWED_HOSTS`. No subas el archivo `.env`.
+configura `SECRET_KEY`, `DEBUG=False` y una conexion PostgreSQL mediante
+`DATABASE_URL` o `POSTGRES_URL`. Tambien son compatibles los nombres
+`POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DATABASE`, `POSTGRES_USER` y
+`POSTGRES_PASSWORD`, o los nombres antiguos `host`, `port`, `database`, `user`
+y `password`. No subas el archivo `.env`.
 
 ## Configuracion local
 

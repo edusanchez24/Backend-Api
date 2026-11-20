@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/6.1/ref/settings/
 """
 
 from pathlib import Path
+from urllib.parse import parse_qs, unquote, urlparse
 
 import os
 from dotenv import load_dotenv
@@ -22,11 +23,47 @@ load_dotenv()
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-db_host = os.getenv("host")
-db_port = os.getenv("port")
-db_database = os.getenv("database")
-db_user = os.getenv("user")
-db_password = os.getenv("password")
+
+def database_config():
+    database_url = (
+        os.getenv("DATABASE_URL")
+        or os.getenv("POSTGRES_URL")
+        or os.getenv("SUPABASE_DB_URL")
+    )
+    if database_url:
+        parsed = urlparse(database_url)
+        if parsed.scheme not in ("postgres", "postgresql"):
+            raise RuntimeError("DATABASE_URL debe usar el esquema postgres://.")
+        query = parse_qs(parsed.query)
+        config = {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": unquote(parsed.path.lstrip("/")),
+            "USER": unquote(parsed.username or ""),
+            "PASSWORD": unquote(parsed.password or ""),
+            "HOST": parsed.hostname or "",
+            "PORT": str(parsed.port or 5432),
+        }
+        sslmode = query.get("sslmode", [None])[0]
+        if sslmode:
+            config["OPTIONS"] = {"sslmode": sslmode}
+        return config
+
+    db_host = os.getenv("host") or os.getenv("POSTGRES_HOST") or os.getenv("SUPABASE_HOST")
+    db_port = os.getenv("port") or os.getenv("POSTGRES_PORT") or "5432"
+    db_database = os.getenv("database") or os.getenv("POSTGRES_DATABASE") or os.getenv("POSTGRES_DB")
+    db_user = os.getenv("user") or os.getenv("POSTGRES_USER")
+    db_password = os.getenv("password") or os.getenv("POSTGRES_PASSWORD")
+    if all((db_host, db_port, db_database, db_user, db_password)):
+        return {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": db_database,
+            "USER": db_user,
+            "PASSWORD": db_password,
+            "HOST": db_host,
+            "PORT": db_port,
+            "OPTIONS": {"sslmode": os.getenv("PGSSLMODE", "require")},
+        }
+    return None
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
@@ -34,7 +71,7 @@ db_password = os.getenv("password")
 DEBUG = os.getenv('DEBUG', 'False').lower() in ('1', 'true', 'yes')
 
 # La clave debe existir en Vercel/Supabase y nunca se publica en el repositorio.
-SECRET_KEY = os.getenv('SECRET_KEY')
+SECRET_KEY = os.getenv('SECRET_KEY') or os.getenv('DJANGO_SECRET_KEY')
 if not SECRET_KEY:
     if os.getenv('VERCEL') or os.getenv('ENVIRONMENT') == 'production':
         raise RuntimeError('Falta SECRET_KEY en las variables de entorno.')
@@ -50,6 +87,7 @@ vercel_hosts = [
 ]
 ALLOWED_HOSTS = [
     'cuidatuventa.vercel.app',
+    '.vercel.app',
     'localhost',
     '127.0.0.1',
 ] + [host.strip() for host in configured_hosts.split(',') if host.strip()]
@@ -141,23 +179,14 @@ if os.getenv('DJANGO_TESTING'):
             'NAME': ':memory:' if os.getenv('DJANGO_TESTING') else BASE_DIR / 'db.sqlite3',
         }
     }
-elif not all((db_host, db_port, db_database, db_user, db_password)):
-    raise RuntimeError(
-        'Faltan variables de PostgreSQL: host, port, database, user y password.'
-    )
 else:
-    # En desarrollo normal y producción, el ORM de Django persiste directamente
-    # en PostgreSQL administrado por Supabase usando estas credenciales.
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.postgresql',
-            'NAME': db_database,
-            'USER': db_user,
-            'PASSWORD': db_password,
-            'HOST': db_host,
-            'PORT': db_port,
-        }
-    }
+    database = database_config()
+    if database is None:
+        raise RuntimeError(
+            'Faltan variables de PostgreSQL: configura DATABASE_URL/POSTGRES_URL '
+            'o host, port, database, user y password.'
+        )
+    DATABASES = {'default': database}
 
 
 # Password validation
